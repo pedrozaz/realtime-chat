@@ -1,37 +1,41 @@
 package io.github.pedrozaz.chatserver.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.pedrozaz.chatserver.config.RedisConfig;
 import io.github.pedrozaz.chatserver.dto.ChatMessageDTO;
 import io.github.pedrozaz.chatserver.service.ChatService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.stereotype.Controller;
 
 import java.util.Objects;
 
 @Controller
+@RequiredArgsConstructor
 public class ChatController {
 
     private final ChatService chatService;
-
-    public ChatController(ChatService chatService) {
-        this.chatService = chatService;
-    }
+    private final ObjectMapper objectMapper;
+    private final StringRedisTemplate redisTemplate;
 
     @MessageMapping("/chat.sendMessage")
-    @SendTo("/topic/public")
-    public ChatMessageDTO sendMessage(@Payload ChatMessageDTO chatMessageDTO) {
+    public void sendMessage(@Payload ChatMessageDTO chatMessageDTO) throws JsonProcessingException {
         chatService.save(chatMessageDTO);
-        return chatMessageDTO;
+        String json = objectMapper.writeValueAsString(chatMessageDTO);
+        redisTemplate.convertAndSend(RedisConfig.CHAT_TOPIC, json);
     }
 
     @MessageMapping("/chat.addUser")
-    @SendTo("/topic/public")
-    public ChatMessageDTO addUser(@Payload ChatMessageDTO chatMessageDTO,
-                                  SimpMessageHeaderAccessor headerAccessor) {
+    public void addUser(@Payload ChatMessageDTO chatMessageDTO,
+                                  SimpMessageHeaderAccessor headerAccessor) throws JsonProcessingException {
         Objects.requireNonNull(headerAccessor.getSessionAttributes()).put("username", chatMessageDTO.sender());
         chatService.save(chatMessageDTO);
-        return chatMessageDTO;
+        String json = objectMapper.writeValueAsString(chatMessageDTO);
+        redisTemplate.convertAndSend(RedisConfig.CHAT_TOPIC, json);
     }
 }
