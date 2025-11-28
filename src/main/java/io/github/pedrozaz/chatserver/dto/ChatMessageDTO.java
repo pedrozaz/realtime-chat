@@ -1,13 +1,10 @@
 package io.github.pedrozaz.chatserver.dto;
 
+import io.github.pedrozaz.chatserver.domain.ChatMessage;
+
 public record ChatMessageDTO(
-        MessageType type,
+        ChatMessage.MessageType type,
         String content,
         String sender
 ) {
-    public enum MessageType {
-        CHAT,
-        JOIN,
-        LEAVE
-    }
 }

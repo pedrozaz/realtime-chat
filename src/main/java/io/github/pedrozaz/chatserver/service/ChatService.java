@@ -16,7 +16,7 @@ public class ChatService {
         ChatMessage chatMessage = ChatMessage.builder()
                 .content(chatMessageDTO.content())
                 .sender(chatMessageDTO.sender())
-                .type(ChatMessageDTO.MessageType.valueOf(chatMessageDTO.type().name()))
+                .type(ChatMessage.MessageType.valueOf(chatMessageDTO.type().name()))
                 .build();
 
         repository.save(chatMessage);
