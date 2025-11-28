@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+    <title>Spring Boot WebSocket Chat</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css" />
+    <style>
+        #chat-page { display: none; }
+        .chat-container { max-width: 700px; margin: 30px auto; border: 1px solid #ddd; padding: 20px; border-radius: 5px; }
+        #messageArea { height: 300px; overflow-y: scroll; border: 1px solid #eee; padding: 10px; margin-bottom: 10px; }
+        .event-message { color: #777; font-style: italic; text-align: center; font-size: 0.8rem;}
+        .chat-message { margin-bottom: 10px; }
+        .chat-message span { font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Login Page -->
+    <div id="username-page" class="has-text-centered mt-6">
+        <h1 class="title">Realtime Chat Server</h1>
+        <div class="field has-addons has-addons-centered">
+            <div class="control">
+                <input class="input" type="text" id="name" placeholder="Username" autocomplete="off">
+            </div>
+            <div class="control">
+                <button class="button is-primary" onclick="connect()">Start Chatting</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Page -->
+    <div id="chat-page" class="chat-container">
+        <div class="is-flex is-justify-content-space-between mb-4">
+            <h2 class="subtitle">Public Room</h2>
+            <button class="button is-small is-danger is-light" onclick="disconnect()">Leave</button>
+        </div>
+
+        <ul id="messageArea" class="is-unstyled"></ul>
+
+        <form id="messageForm" name="messageForm">
+            <div class="field has-addons">
+                <div class="control is-expanded">
+                    <input class="input" type="text" id="message" placeholder="Type a message..." autocomplete="off">
+                </div>
+                <div class="control">
+                    <button class="button is-info" type="submit">Send</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.1.4/sockjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+<script>
+    let stompClient = null;
+    let username = null;
+
+    function connect(event) {
+        username = document.querySelector('#name').value.trim();
+        if(username) {
+            document.querySelector('#username-page').style.display = 'none';
+            document.querySelector('#chat-page').style.display = 'block';
+
+            let socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+            stompClient.connect({}, onConnected, onError);
+        }
+    }
+
+    function onConnected() {
+        // Subscribe to the Public Topic
+        stompClient.subscribe('/topic/public', onMessageReceived);
+
+        // Tell your username to the server
+        stompClient.send("/app/chat.addUser",
+            {},
+            JSON.stringify({sender: username, type: 'JOIN'})
+        );
+    }
+
+    function onError(error) {
+        let messageArea = document.querySelector('#messageArea');
+        messageArea.innerHTML += '<li class="has-text-danger">Could not connect to WebSocket server. Please refresh.</li>';
+    }
+
+    function sendMessage(event) {
+        let messageContent = document.querySelector('#message').value.trim();
+        if(messageContent && stompClient) {
+            let chatMessage = {
+                sender: username,
+                content: messageContent,
+                type: 'CHAT'
+            };
+            stompClient.send("/app/chat.sendMessage", {}, JSON.stringify(chatMessage));
+            document.querySelector('#message').value = '';
+        }
+        event.preventDefault();
+    }
+
+    function onMessageReceived(payload) {
+        let message = JSON.parse(payload.body);
+        let messageElement = document.createElement('li');
+
+        if(message.type === 'JOIN') {
+            messageElement.classList.add('event-message');
+            message.content = message.sender + ' joined!';
+        } else if (message.type === 'LEAVE') {
+            messageElement.classList.add('event-message');
+            message.content = message.sender + ' left!';
+        } else {
+            messageElement.classList.add('chat-message');
+            let usernameElement = document.createElement('span');
+            let usernameText = document.createTextNode(message.sender + ": ");
+            usernameElement.appendChild(usernameText);
+            messageElement.appendChild(usernameElement);
+        }
+
+        let textElement = document.createElement('span');
+        let messageText = document.createTextNode(message.content);
+        textElement.appendChild(messageText);
+        messageElement.appendChild(textElement);
+
+        let messageArea = document.querySelector('#messageArea');
+        messageArea.appendChild(messageElement);
+        messageArea.scrollTop = messageArea.scrollHeight;
+    }
+
+    function disconnect() {
+        if (stompClient !== null) {
+            stompClient.disconnect();
+        }
+        window.location.reload();
+    }
+
+    document.querySelector('#messageForm').addEventListener('submit', sendMessage, true);
+</script>
+</body>
+</html>
