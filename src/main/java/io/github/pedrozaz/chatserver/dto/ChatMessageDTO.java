@@ -1,6 +1,6 @@
 package io.github.pedrozaz.chatserver.dto;
 
-public record ChatMessage (
+public record ChatMessageDTO(
         MessageType type,
         String content,
         String sender

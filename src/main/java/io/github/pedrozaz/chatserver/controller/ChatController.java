@@ -1,28 +1,37 @@
 package io.github.pedrozaz.chatserver.controller;
 
-import io.github.pedrozaz.chatserver.dto.ChatMessage;
+import io.github.pedrozaz.chatserver.dto.ChatMessageDTO;
+import io.github.pedrozaz.chatserver.service.ChatService;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.stereotype.Controller;
 
+import java.util.Objects;
+
 @Controller
 public class ChatController {
 
+    private final ChatService chatService;
+
+    public ChatController(ChatService chatService) {
+        this.chatService = chatService;
+    }
+
     @MessageMapping("/chat.sendMessage")
     @SendTo("/topic/public")
-    public ChatMessage sendMessage(@Payload ChatMessage chatMessage) {
-        return chatMessage;
+    public ChatMessageDTO sendMessage(@Payload ChatMessageDTO chatMessageDTO) {
+        chatService.save(chatMessageDTO);
+        return chatMessageDTO;
     }
 
     @MessageMapping("/chat.addUser")
     @SendTo("/topic/public")
-    public ChatMessage addUser(@Payload ChatMessage chatMessage,
-                               SimpMessageHeaderAccessor headerAccessor) {
-        if (headerAccessor.getSessionAttributes() != null) {
-            headerAccessor.getSessionAttributes().put("username", chatMessage.sender());
-        }
-        return chatMessage;
+    public ChatMessageDTO addUser(@Payload ChatMessageDTO chatMessageDTO,
+                                  SimpMessageHeaderAccessor headerAccessor) {
+        Objects.requireNonNull(headerAccessor.getSessionAttributes()).put("username", chatMessageDTO.sender());
+        chatService.save(chatMessageDTO);
+        return chatMessageDTO;
     }
 }

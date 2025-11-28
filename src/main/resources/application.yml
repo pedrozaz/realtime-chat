@@ -1,3 +1,21 @@
 spring:
   application:
     name: realtime-chat
+
+  data:
+    mongodb:
+      uri: mongodb://admin:password@localhost:27017/chat_db?authSource=admin
+      auto-index-creation: true
+
+    redis:
+      host: localhost
+      port: 6379
+
+logging:
+  level:
+    root: INFO
+    org.springframework.web.socket: WARN
+    io.github.pedrozaz.chatserver: DEBUG
+
+server:
+  port: 8080
