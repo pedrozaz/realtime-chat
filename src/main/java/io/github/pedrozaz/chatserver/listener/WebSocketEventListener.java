@@ -44,7 +44,8 @@ public class WebSocketEventListener {
             var chatMessage = new ChatMessageDTO(
                     ChatMessage.MessageType.LEAVE,
                     username + " left",
-                    username
+                    username,
+                    null
             );
 
             try {

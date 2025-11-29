@@ -1,183 +1,348 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
-    <title>Spring Boot Secure Chat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Distributed Chat</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css" />
+
     <style>
-        #chat-page { display: none; }
-        .chat-container { max-width: 700px; margin: 30px auto; border: 1px solid #ddd; padding: 20px; border-radius: 5px; }
-        #messageArea { height: 300px; overflow-y: scroll; border: 1px solid #eee; padding: 10px; margin-bottom: 10px; }
-        .event-message { color: #777; font-style: italic; text-align: center; font-size: 0.8rem;}
-        .chat-message { margin-bottom: 10px; }
-        .chat-message span { font-weight: bold; }
+        body {
+            background: #f0f2f5;
+        }
+
+        #chat-page {
+            display: none;
+        }
+
+        .chat-wrapper {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+            max-height: 100vh;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 260px;
+            background: #ffffff;
+            border-right: 1px solid #ddd;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .sidebar h3 {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .users-list {
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .user-item {
+            padding: 8px 10px;
+            background: #f6f6f6;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            cursor: pointer;
+        }
+        .user-item:hover { background: #e8e8e8; }
+        .user-item.active { background: #3273dc; color: white; }
+
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            background: #fff;
+        }
+
+        .chat-header {
+            padding: 15px;
+            background: #fafafa;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 0;
+        }
+
+        .msg-bubble {
+            padding: 10px 15px;
+            border-radius: 15px;
+            max-width: 75%;
+            word-wrap: break-word;
+            font-size: 0.95rem;
+        }
+
+        .msg-bubble.mine {
+            background: #3273dc;
+            color: white;
+            align-self: flex-end;
+        }
+
+        .msg-bubble.theirs {
+            background: #ececec;
+            color: #111;
+            align-self: flex-start;
+        }
+
+        .msg-bubble.private {
+            border: 2px solid #ffdd57;
+        }
+
+        .system-msg {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .input-area {
+            padding: 15px;
+            border-top: 1px solid #ddd;
+            background: #fafafa;
+            flex-shrink: 0;
+        }
+
     </style>
 </head>
 <body>
 
-<div class="container">
-    <!-- Login Page -->
-    <div id="username-page" class="has-text-centered mt-6">
-        <h1 class="title">Secure Chat Server</h1>
-        <div class="box" style="max-width: 400px; margin: 0 auto;">
-            <div class="field">
-                <label class="label">Username</label>
-                <div class="control">
-                    <input class="input" type="text" id="username" placeholder="Enter username">
+<div id="login-page" class="section">
+    <div class="box" style="max-width: 400px; margin: auto;">
+        <h1 class="title has-text-centered">Login</h1>
+
+        <div class="field">
+            <input class="input" id="username" placeholder="Username">
+        </div>
+
+        <div class="field">
+            <input class="input" type="password" id="password" placeholder="Password">
+        </div>
+
+        <div class="buttons is-centered">
+            <button class="button is-link" onclick="auth('register')">Register</button>
+            <button class="button is-primary" onclick="auth('login')">Login</button>
+        </div>
+
+        <p id="error-msg" class="has-text-danger has-text-centered"></p>
+    </div>
+</div>
+
+<div id="chat-page" class="chat-wrapper">
+    <div class="sidebar">
+        <h3>Online Users</h3>
+        <div id="users-container" class="users-list"></div>
+    </div>
+
+    <div class="chat-area">
+        <div class="chat-header">
+            <h2 id="chat-header-title">Public Room</h2>
+            <button class="button is-danger is-small" onclick="logout()">Logout</button>
+        </div>
+
+        <div id="messages-area" class="messages"></div>
+
+        <div class="input-area">
+            <form onsubmit="sendMessage(event)">
+                <div class="field has-addons">
+                    <div class="control is-expanded">
+                        <input class="input" id="message-input" placeholder="Type a message..." autocomplete="off">
+                    </div>
+                    <div class="control">
+                        <button class="button is-info">Send</button>
+                    </div>
                 </div>
-            </div>
-            <div class="field">
-                <label class="label">Password</label>
-                <div class="control">
-                    <input class="input" type="password" id="password" placeholder="Enter password">
-                </div>
-            </div>
-            <div class="field is-grouped is-justify-content-center">
-                <div class="control">
-                    <button class="button is-link" onclick="handleAuth('register')">Register</button>
-                </div>
-                <div class="control">
-                    <button class="button is-primary" onclick="handleAuth('login')">Login</button>
-                </div>
-            </div>
-            <p id="error-msg" class="has-text-danger mt-2"></p>
+            </form>
         </div>
     </div>
 
-    <!-- Chat Page -->
-    <div id="chat-page" class="chat-container">
-        <div class="is-flex is-justify-content-space-between mb-4">
-            <h2 class="subtitle">Public Room (<span id="currentUser"></span>)</h2>
-            <button class="button is-small is-danger is-light" onclick="logout()">Logout</button>
-        </div>
-
-        <ul id="messageArea" class="is-unstyled"></ul>
-
-        <form id="messageForm" name="messageForm">
-            <div class="field has-addons">
-                <div class="control is-expanded">
-                    <input class="input" type="text" id="message" placeholder="Type a message..." autocomplete="off">
-                </div>
-                <div class="control">
-                    <button class="button is-info" type="submit">Send</button>
-                </div>
-            </div>
-        </form>
-    </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.1.4/sockjs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+
 <script>
+
     let stompClient = null;
-    let currentToken = null;
-    let currentUsername = null;
+    let token = null;
+    let currentUser = null;
+    let activeRecipient = null;
+    let onlineUsers = new Set();
 
-    async function handleAuth(type) {
-        const username = document.querySelector('#username').value.trim();
-        const password = document.querySelector('#password').value.trim();
-        const errorMsg = document.querySelector('#error-msg');
-
-        if (!username || !password) {
-            errorMsg.textContent = "Please fill all fields";
-            return;
-        }
+    async function auth(type) {
+        const user = document.getElementById('username').value;
+        const pass = document.getElementById('password').value;
 
         try {
-            const response = await fetch(`/auth/${type}`, {
+            const res = await fetch(`/auth/${type}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: user, password: pass})
             });
 
-            if (response.ok) {
-                const data = await response.json();
-                currentToken = data.token;
-                currentUsername = username;
-                connectWebSocket();
+            if (res.ok) {
+                const data = await res.json();
+                token = data.token;
+                currentUser = user;
+                connect();
             } else {
-                errorMsg.textContent = `This username is already taken. Try again.`;
+                document.getElementById('error-msg').innerText = "Auth failed";
             }
         } catch (e) {
-            errorMsg.textContent = "Server error";
+            console.error(e);
         }
     }
 
-    function connectWebSocket() {
-        document.querySelector('#username-page').style.display = 'none';
-        document.querySelector('#chat-page').style.display = 'block';
-        document.querySelector('#currentUser').textContent = currentUsername;
+    function connect() {
+        document.getElementById('login-page').style.display = 'none';
+        document.getElementById('chat-page').style.display = 'flex';
 
-        let socket = new SockJS('/ws');
+        const socket = new SockJS('/ws');
         stompClient = Stomp.over(socket);
-
-        // Passa o Token no Header do STOMP CONNECT
-        stompClient.connect({ 'Authorization': 'Bearer ' + currentToken }, onConnected, onError);
+        stompClient.connect({'Authorization': 'Bearer ' + token}, onConnect, onError);
     }
 
-    function onConnected() {
-        stompClient.subscribe('/topic/public', onMessageReceived);
+    function onConnect() {
+        selectChat(null);
 
-        stompClient.send("/app/chat.addUser",
-            {},
-            JSON.stringify({sender: currentUsername, type: 'JOIN', content: 'joined'})
-        );
+        stompClient.subscribe('/topic/public', onPublicMessage);
+        stompClient.subscribe('/user/queue/messages', onPrivateMessage);
+
+        stompClient.subscribe('/user/queue/online-users', payload => {
+            const users = JSON.parse(payload.body);
+            users.forEach(u => onlineUsers.add(u));
+            renderUsersList();
+        });
+
+        stompClient.send("/app/chat.addUser", {}, JSON.stringify({
+            sender: currentUser, type: 'JOIN', recipient: null
+        }));
+
+        stompClient.send("/app/chat.getOnlineUsers", {}, {});
     }
 
-    function onError(error) {
-        alert('Could not connect or Not Authorized!');
+    function onError() {
+        alert("Connection lost");
         logout();
     }
 
-    function sendMessage(event) {
-        let messageContent = document.querySelector('#message').value.trim();
-        if(messageContent && stompClient) {
-            let chatMessage = {
-                sender: currentUsername,
-                content: messageContent,
-                type: 'CHAT'
-            };
-            stompClient.send("/app/chat.sendMessage", {}, JSON.stringify(chatMessage));
-            document.querySelector('#message').value = '';
-        }
-        event.preventDefault();
+    function renderUsersList() {
+        const container = document.getElementById('users-container');
+
+        container.innerHTML = `
+        <div class="user-item ${activeRecipient === null ? 'active' : ''}" onclick="selectChat(null)">
+            # Public Room
+        </div>
+    `;
+
+        onlineUsers.forEach(u => {
+            if (u === currentUser) return;
+            const div = document.createElement('div');
+            div.className = `user-item ${activeRecipient === u ? 'active' : ''}`;
+            div.innerText = u;
+            div.onclick = () => selectChat(u);
+            container.appendChild(div);
+        });
     }
 
-    function onMessageReceived(payload) {
-        let message = JSON.parse(payload.body);
-        let messageElement = document.createElement('li');
+    async function selectChat(user) {
+        activeRecipient = user;
+        document.getElementById('chat-header-title').innerText = user ? `Private: ${user}` : "Public Room";
+        document.getElementById('messages-area').innerHTML = '';
+        renderUsersList();
 
-        if(message.type === 'JOIN') {
-            messageElement.classList.add('event-message');
-            message.content = message.sender + ' joined!';
-        } else if (message.type === 'LEAVE') {
-            messageElement.classList.add('event-message');
-            message.content = message.sender + ' left!';
+        const recipientParam = user ? `?recipient=${user}` : '';
+
+        try {
+            const res = await fetch(`/messages${recipientParam}`, {
+                headers: {'Authorization': 'Bearer ' + token}
+            });
+
+            if (res.ok) {
+                const messages = await res.json();
+                messages.forEach(m => renderMessage(m));
+            }
+
+        } catch (e) {
+            console.error("Failed to fetch history", e);
+        }
+    }
+
+    function sendMessage(e) {
+        e.preventDefault();
+        const input = document.getElementById('message-input');
+        const content = input.value.trim();
+        if (!content) return;
+
+        const msg = {
+            sender: currentUser,
+            content: content,
+            type: 'CHAT',
+            recipient: activeRecipient
+        };
+
+        if (activeRecipient)
+            stompClient.send("/app/chat.sendPrivateMessage", {}, JSON.stringify(msg));
+        else
+            stompClient.send("/app/chat.sendMessage", {}, JSON.stringify(msg));
+
+        input.value = '';
+    }
+
+    function onPublicMessage(payload) {
+        const msg = JSON.parse(payload.body);
+
+        if (msg.type === 'JOIN') onlineUsers.add(msg.sender);
+        if (msg.type === 'LEAVE') onlineUsers.delete(msg.sender);
+
+        renderUsersList();
+        if (!activeRecipient) renderMessage(msg);
+    }
+
+    function onPrivateMessage(payload) {
+        const msg = JSON.parse(payload.body);
+
+        if (activeRecipient === msg.sender)
+            renderMessage(msg);
+    }
+
+    function renderMessage(msg) {
+        const area = document.getElementById('messages-area');
+        const div = document.createElement('div');
+
+        if (msg.type === 'JOIN' || msg.type === 'LEAVE') {
+            div.className = 'system-msg';
+            div.innerText = `${msg.sender} ${msg.type.toLowerCase()}ed`;
         } else {
-            messageElement.classList.add('chat-message');
-            let usernameElement = document.createElement('span');
-            let usernameText = document.createTextNode(message.sender + ": ");
-            usernameElement.appendChild(usernameText);
-            messageElement.appendChild(usernameElement);
+            const isMine = msg.sender === currentUser;
+            div.className = `msg-bubble ${isMine ? 'mine' : 'theirs'} ${msg.recipient ? 'private' : ''}`;
+            div.innerHTML = `<strong>${msg.sender}:</strong> ${msg.content}`;
         }
 
-        let textElement = document.createElement('span');
-        let messageText = document.createTextNode(message.content);
-        textElement.appendChild(messageText);
-        messageElement.appendChild(textElement);
-
-        let messageArea = document.querySelector('#messageArea');
-        messageArea.appendChild(messageElement);
-        messageArea.scrollTop = messageArea.scrollHeight;
+        area.appendChild(div);
+        area.scrollTop = area.scrollHeight;
     }
 
     function logout() {
         if (stompClient) stompClient.disconnect();
-        currentToken = null;
         window.location.reload();
     }
-
-    document.querySelector('#messageForm').addEventListener('submit', sendMessage, true);
 </script>
+
 </body>
 </html>
