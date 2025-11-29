@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
-    <title>Spring Boot WebSocket Chat</title>
+    <title>Spring Boot Secure Chat</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css" />
     <style>
         #chat-page { display: none; }
@@ -18,22 +18,37 @@
 <div class="container">
     <!-- Login Page -->
     <div id="username-page" class="has-text-centered mt-6">
-        <h1 class="title">Realtime Chat Server</h1>
-        <div class="field has-addons has-addons-centered">
-            <div class="control">
-                <input class="input" type="text" id="name" placeholder="Username" autocomplete="off">
+        <h1 class="title">Secure Chat Server</h1>
+        <div class="box" style="max-width: 400px; margin: 0 auto;">
+            <div class="field">
+                <label class="label">Username</label>
+                <div class="control">
+                    <input class="input" type="text" id="username" placeholder="Enter username">
+                </div>
             </div>
-            <div class="control">
-                <button class="button is-primary" onclick="connect()">Start Chatting</button>
+            <div class="field">
+                <label class="label">Password</label>
+                <div class="control">
+                    <input class="input" type="password" id="password" placeholder="Enter password">
+                </div>
             </div>
+            <div class="field is-grouped is-justify-content-center">
+                <div class="control">
+                    <button class="button is-link" onclick="handleAuth('register')">Register</button>
+                </div>
+                <div class="control">
+                    <button class="button is-primary" onclick="handleAuth('login')">Login</button>
+                </div>
+            </div>
+            <p id="error-msg" class="has-text-danger mt-2"></p>
         </div>
     </div>
 
     <!-- Chat Page -->
     <div id="chat-page" class="chat-container">
         <div class="is-flex is-justify-content-space-between mb-4">
-            <h2 class="subtitle">Public Room</h2>
-            <button class="button is-small is-danger is-light" onclick="disconnect()">Leave</button>
+            <h2 class="subtitle">Public Room (<span id="currentUser"></span>)</h2>
+            <button class="button is-small is-danger is-light" onclick="logout()">Logout</button>
         </div>
 
         <ul id="messageArea" class="is-unstyled"></ul>
@@ -55,45 +70,74 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
 <script>
     let stompClient = null;
-    let username = null;
+    let currentToken = null;
+    let currentUsername = null;
 
-    function connect(event) {
-        username = document.querySelector('#name').value.trim();
-        if(username) {
-            document.querySelector('#username-page').style.display = 'none';
-            document.querySelector('#chat-page').style.display = 'block';
+    async function handleAuth(type) {
+        const username = document.querySelector('#username').value.trim();
+        const password = document.querySelector('#password').value.trim();
+        const errorMsg = document.querySelector('#error-msg');
 
-            let socket = new SockJS('/ws');
-            stompClient = Stomp.over(socket);
-            stompClient.connect({}, onConnected, onError);
+        if (!username || !password) {
+            errorMsg.textContent = "Please fill all fields";
+            return;
+        }
+
+        try {
+            const response = await fetch(`/auth/${type}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                currentToken = data.token;
+                currentUsername = username;
+                connectWebSocket();
+            } else {
+                errorMsg.textContent = `This username is already taken. Try again.`;
+            }
+        } catch (e) {
+            errorMsg.textContent = "Server error";
         }
     }
 
+    function connectWebSocket() {
+        document.querySelector('#username-page').style.display = 'none';
+        document.querySelector('#chat-page').style.display = 'block';
+        document.querySelector('#currentUser').textContent = currentUsername;
+
+        let socket = new SockJS('/ws');
+        stompClient = Stomp.over(socket);
+
+        // Passa o Token no Header do STOMP CONNECT
+        stompClient.connect({ 'Authorization': 'Bearer ' + currentToken }, onConnected, onError);
+    }
+
     function onConnected() {
-        // Subscribe to the Public Topic
         stompClient.subscribe('/topic/public', onMessageReceived);
 
-        // Tell your username to the server
         stompClient.send("/app/chat.addUser",
             {},
-            JSON.stringify({sender: username, type: 'JOIN'})
+            JSON.stringify({sender: currentUsername, type: 'JOIN', content: 'joined'})
         );
     }
 
     function onError(error) {
-        let messageArea = document.querySelector('#messageArea');
-        messageArea.innerHTML += '<li class="has-text-danger">Could not connect to WebSocket server. Please refresh.</li>';
+        alert('Could not connect or Not Authorized!');
+        logout();
     }
 
     function sendMessage(event) {
         let messageContent = document.querySelector('#message').value.trim();
         if(messageContent && stompClient) {
-            let chatMessageDTO = {
-                sender: username,
+            let chatMessage = {
+                sender: currentUsername,
                 content: messageContent,
                 type: 'CHAT'
             };
-            stompClient.send("/app/chat.sendMessage", {}, JSON.stringify(chatMessageDTO));
+            stompClient.send("/app/chat.sendMessage", {}, JSON.stringify(chatMessage));
             document.querySelector('#message').value = '';
         }
         event.preventDefault();
@@ -127,10 +171,9 @@
         messageArea.scrollTop = messageArea.scrollHeight;
     }
 
-    function disconnect() {
-        if (stompClient !== null) {
-            stompClient.disconnect();
-        }
+    function logout() {
+        if (stompClient) stompClient.disconnect();
+        currentToken = null;
         window.location.reload();
     }
 
