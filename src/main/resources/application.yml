@@ -4,7 +4,7 @@ spring:
 
   data:
     mongodb:
-      uri: mongodb://admin:password@localhost:27017/chat_db?authSource=admin
+      uri: mongodb://${MONGO_ROOT_USER:admin}:${MONGO_ROOT_PASSWORD:password}@localhost:27017/chat_db?authSource=admin
       auto-index-creation: true
 
     redis:
@@ -19,3 +19,8 @@ logging:
 
 server:
   port: 8080
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:d7ff2b31dd6cfc62fc735f26f49659a742b6d36b14a140693ff25021c00e66f5}
+    expiration: 86400000
