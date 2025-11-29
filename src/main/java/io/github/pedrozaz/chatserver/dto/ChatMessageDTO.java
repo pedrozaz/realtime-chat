@@ -5,6 +5,7 @@ import io.github.pedrozaz.chatserver.domain.ChatMessage;
 public record ChatMessageDTO(
         ChatMessage.MessageType type,
         String content,
-        String sender
+        String sender,
+        String recipient
 ) {
 }
